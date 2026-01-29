@@ -1,146 +1,144 @@
-const express = require("express")
-const app = express()
-app.use((req,res,next)=>{
-    console.log(${req.method}${req.url})
-    next()
-})
-app.use(express.json())
-const {MongoClient,ObjectId} = require("mongodb")
-require("dotenv").config()
+const express = require("express");
+const { MongoClient, ObjectId } = require("mongodb");
+require("dotenv").config();
 
-const PORT = process.env.PORT || 3000
-const MONGO_URL = process.env.MONGO_URL 
+const app = express();
 
-let products
-MongoClient.connect(MONGO_URL).then(
-    client=>{
-        console.log("MongoDB connected")
-        const db = client.db("shop")
-        products = db.collection("products")
-        app.listen(PORT,()=>console.log("Server running on port http://localhost:3000"))
-    }
-)
+// ===== ENV =====
+const PORT = process.env.PORT || 3000;
+const MONGO_URL = process.env.MONGO_URL;
 
-app.get("/",(req,res)=>{
-    res.status(200).send(`
-        <html>
-            <head>
-                <title>Practice task 9-10</title>
-            </head>
-            <body>
-                <h1>
-                    Links
-                </h1>
-                <h3>
-                    <a href="/api/products">/api/products</a><br>
-                    <a href="/api/products/697067d9a294db2300eab1d3">/api/products/1</a>
-                </h3>
-            </body>
-        </html>
-        `)
-})
+// ===== MIDDLEWARE =====
+app.use((req, res, next) => {
+  console.log(req.method, req.url);
+  next();
+});
+app.use(express.json());
 
-app.get("/version",(req,res)=>{
-  res.json({
-    version:"1.1",
-    updateAt:"2026-01-28."
+// ===== DB =====
+let products;
+
+MongoClient.connect(MONGO_URL)
+  .then((client) => {
+    console.log("MongoDB connected");
+    const db = client.db("shop");
+    products = db.collection("products");
+
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
   })
-})
+  .catch((err) => {
+    console.error("MongoDB connection error:", err);
+    process.exit(1);
+  });
 
-app.get("/api/products", async (req,res)=>{
-  const { category, minPrice, sort, fields } = req.query
+// ===== ROUTES =====
+app.get("/", (req, res) => {
+  res.status(200).json({
+    message: "Practice Task 11 API",
+    endpoints: [
+      "GET /api/products",
+      "GET /api/products/:id",
+      "POST /api/products",
+      "PUT /api/products/:id",
+      "DELETE /api/products/:id",
+    ],
+  });
+});
 
-  let filter = {}
-  if (category) {
-    filter.category = category
-  }
-
-  if (minPrice) {
-    const min_price = Number(minPrice)
-    if (isNaN(min_price)) {
-      return res.status(400).json({
-        error: "Invalid minPrice",
-      });
-    }
-    filter.price = { $gte: min_price }
-  }
-
-  let sorting = {};
-  if (sort) {
-    if (sort === "price") {
-      sorting.price = 1;
-    } else if (sort === "priceDesc") {
-      sorting.price = -1;
-    } else {
-      return res.status(400).json({
-        error: "Invalid sort value",
-      });
-    }
-  }
-
-  let chosen_fields = {}
-  if (fields) {
-    const displaying_fields = fields.split(",")
-    for (let i = 0; i < displaying_fields.length; i++) {
-      let field = displaying_fields[i]
-      chosen_fields[field] = 1
-    }
-  }
-
+app.get("/api/products", async (req, res) => {
   try {
-    let filtered_products = products.find(filter)
+    const { category, minPrice, sort, fields } = req.query;
 
-    if (Object.keys(sorting).length > 0) {
-      filtered_products = filtered_products.sort(sorting)
+    let filter = {};
+    if (category) filter.category = category;
+    if (minPrice) filter.price = { $gte: Number(minPrice) };
+
+    let sortOption = {};
+    if (sort === "price") sortOption.price = 1;
+    if (sort === "priceDesc") sortOption.price = -1;
+
+    let projection = {};
+    if (fields) {
+      fields.split(",").forEach((f) => (projection[f.trim()] = 1));
     }
 
-    if (Object.keys(chosen_fields).length > 0) {
-      filtered_products = filtered_products.project(chosen_fields)
-    }
+    let cursor = products.find(filter);
 
-    const list = await filtered_products.toArray()
+    if (Object.keys(sortOption).length) cursor = cursor.sort(sortOption);
+    if (Object.keys(projection).length) cursor = cursor.project(projection);
 
-    res.status(200).json({
-        count: list.length,
-        products: list,
-    })
+    const list = await cursor.toArray();
+
+    res.json({
+      count: list.length,
+      products: list,
+    });
   } catch (err) {
-    res.status(500).json({ error: "Server error" })
-  }  
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
-})
+app.get("/api/products/:id", async (req, res) => {
+  const id = req.params.id;
 
-app.get("/api/products/:id", async (req,res)=>{
-    const product_id = req.params.id
-    if(!ObjectId.isValid(product_id)){
-        return res.status(400).json({
-            error:"Invalid id"
-        })
-    }
-    const product = await products.findOne({_id: new ObjectId(product_id)})
-    if (!product){
-        return res.status(404).json({
-            error:"Product not found"
-        })
-    }
-    res.status(200).json(product)
-})
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ error: "Invalid ID" });
+  }
 
-app.post("/api/products",async(req,res)=>{
-    const {name,price,category} = req.body
-    if (!name  typeof price !== "number"  !category){
-        return res.status(400).json({
-            error:"Missing or invalid fields"
-        })
-    }
-    await products.insertOne({name,price,category})
-    res.status(201).json({
-        message:"Product created"
-    })
-})
+  const product = await products.findOne({ _id: new ObjectId(id) });
+  if (!product) {
+    return res.status(404).json({ error: "Product not found" });
+  }
 
-app.use((req,res)=>{
-    return res.status(404).json({
-        error:"Page not found"
-    })
-})
+  res.json(product);
+});
+
+app.post("/api/products", async (req, res) => {
+  const { name, price, category } = req.body;
+
+  if (!name || typeof price !== "number" || !category) {
+    return res.status(400).json({ error: "Invalid data" });
+  }
+
+  await products.insertOne({ name, price, category });
+  res.status(201).json({ message: "Product created" });
+});
+
+app.put("/api/products/:id", async (req, res) => {
+  const id = req.params.id;
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ error: "Invalid ID" });
+  }
+
+  const result = await products.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: req.body }
+  );
+
+  if (result.matchedCount === 0) {
+    return res.status(404).json({ error: "Product not found" });
+  }
+
+  res.json({ message: "Product updated" });
+});
+
+app.delete("/api/products/:id", async (req, res) => {
+  const id = req.params.id;
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ error: "Invalid ID" });
+  }
+
+  const result = await products.deleteOne({ _id: new ObjectId(id) });
+  if (result.deletedCount === 0) {
+    return res.status(404).json({ error: "Product not found" });
+  }
+
+  res.json({ message: "Product deleted" });
+});
+
+// ===== 404 =====
+app.use((req, res) => {
+  res.status(404).json({ error: "Endpoint not found" });
+});
