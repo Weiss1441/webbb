@@ -2,12 +2,12 @@
 
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
+require('dotenv').config(); // Подключаем .env
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DB_NAME = 'shop';
 const COLLECTION_NAME = 'products';
-const MONGODB_URI = process.env.MONGO_URI || 'mongodb://localhost:27017';
+const MONGODB_URI = process.env.MONGO_URI;
 
 let db;
 
@@ -24,13 +24,14 @@ app.get('/', (req, res) => {
         <h1>Practice Task 10 API</h1>
         <p>Endpoints:</p>
         <ul>
-            <li>GET /api/products (with query parameters: category, minPrice, sort, fields)</li>
+            <li>GET /api/products (query params: category, minPrice, sort, fields)</li>
             <li>GET /api/products/:id</li>
             <li>POST /api/products</li>
         </ul>
     `);
 });
 
+// GET /api/products с фильтром, сортировкой и проекцией
 app.get('/api/products', async (req, res) => {
     try {
         const { category, minPrice, sort, fields } = req.query;
@@ -60,6 +61,7 @@ app.get('/api/products', async (req, res) => {
     }
 });
 
+// GET /api/products/:id
 app.get('/api/products/:id', async (req, res) => {
     const { id } = req.params;
     if (!ObjectId.isValid(id)) return res.status(400).json({ error: 'Invalid product ID' });
@@ -73,6 +75,7 @@ app.get('/api/products/:id', async (req, res) => {
     }
 });
 
+// POST /api/products
 app.post('/api/products', async (req, res) => {
     const { name, price, category } = req.body;
     if (!name || !price || !category) return res.status(400).json({ error: 'Missing required fields' });
@@ -88,6 +91,7 @@ app.post('/api/products', async (req, res) => {
     }
 });
 
+// 404
 app.use((req, res) => {
     res.status(404).json({ error: 'API endpoint not found' });
 });
@@ -97,8 +101,8 @@ async function main() {
     try {
         const client = new MongoClient(MONGODB_URI);
         await client.connect();
-        db = client.db(DB_NAME);
-        console.log(`Connected to MongoDB database: ${DB_NAME}`);
+        db = client.db(); // база выбирается автоматически из URI
+        console.log('Connected to MongoDB Atlas');
 
         app.listen(PORT, () => {
             console.log(`Server running at http://localhost:${PORT}`);
