@@ -60,12 +60,6 @@ app.get("/", (req, res) => {
   `);
 });
 
-app.get("/version", (req, res) => {
-  res.json({
-    version: "1.0",
-    updatedAt: "2026-01-29",
-  });
-});
 
 app.get("/api/products", async (req, res) => {
   try {
