@@ -50,14 +50,6 @@ app.get("/", (req, res) => {
       </head>
       <body>
         <h1>Available API Routes</h1>
-
-        <h2>Products (old)</h2>
-        <p><b>GET</b> /api/products</p>
-        <p><b>GET</b> /api/products/:id</p>
-        <p><b>POST</b> /api/products</p>
-        <p><b>PUT</b> /api/products/:id</p>
-        <p><b>DELETE</b> /api/products/:id</p>
-
         <h2>Items (Practice Task 13)</h2>
         <p><b>GET</b> /api/items</p>
         <p><b>GET</b> /api/items/:id</p>
