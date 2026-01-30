@@ -34,16 +34,36 @@ MongoClient.connect(MONGO_URL)
   });
 
 // ===== ROUTES =====
+
+// HTML PAGE (вариант 2)
 app.get("/", (req, res) => {
-  res.status(200).json({
-    message: "Practice Task 11 API",
-    endpoints: [
-      "GET /api/products",
-      "GET /api/products/:id",
-      "POST /api/products",
-      "PUT /api/products/:id",
-      "DELETE /api/products/:id",
-    ],
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Practice Task 11</title>
+      </head>
+      <body>
+        <h1>Available API Routes</h1>
+
+        <p><b>GET</b> /api/products</p>
+        <p><b>GET</b> /api/products/:id</p>
+
+        <p><b>POST</b> /api/products</p>
+        <p><b>PUT</b> /api/products/:id</p>
+        <p><b>DELETE</b> /api/products/:id</p>
+
+        <p><b>GET</b> /version</p>
+      </body>
+    </html>
+  `);
+});
+
+app.get("/version", (req, res) => {
+  res.json({
+    version: "1.0",
+    updatedAt: "2026-01-29",
   });
 });
 
@@ -108,6 +128,7 @@ app.post("/api/products", async (req, res) => {
 
 app.put("/api/products/:id", async (req, res) => {
   const id = req.params.id;
+
   if (!ObjectId.isValid(id)) {
     return res.status(400).json({ error: "Invalid ID" });
   }
@@ -126,6 +147,7 @@ app.put("/api/products/:id", async (req, res) => {
 
 app.delete("/api/products/:id", async (req, res) => {
   const id = req.params.id;
+
   if (!ObjectId.isValid(id)) {
     return res.status(400).json({ error: "Invalid ID" });
   }
