@@ -6,7 +6,7 @@ const app = express();
 
 // ===== ENV =====
 const PORT = process.env.PORT || 3000;
-const MONGO_URL = process.env.MONGO_URL;
+const MONGO_URL = process.env.MONGO_URI;
 
 // ===== MIDDLEWARE =====
 app.use(express.json());
@@ -17,38 +17,41 @@ app.use((req, res, next) => {
 });
 
 // ===== DB =====
-let items;
+let items = null;
 
-MongoClient.connect(MONGO_URL)
-  .then(async (client) => {
+// 🔒 блокируем API, пока БД не готова (ВАЖНО для Render)
+app.use("/api", (req, res, next) => {
+  if (!items) {
+    return res.status(503).json({ error: "Database not ready" });
+  }
+  next();
+});
+
+// ===== START SERVER =====
+async function start() {
+  try {
+    const client = await MongoClient.connect(MONGO_URL);
     console.log("MongoDB connected");
 
     const db = client.db("shop");
 
-    // 🔹 гарантированно создаём коллекцию items
-    const collections = await db
-      .listCollections({ name: "items" })
-      .toArray();
-
-    if (collections.length === 0) {
-      await db.createCollection("items");
-      console.log("Collection 'items' created");
-    }
-
+    // коллекция создаётся автоматически при первом insert
     items = db.collection("items");
 
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
-  })
-  .catch((err) => {
-    console.error("MongoDB connection error:", err);
+  } catch (err) {
+    console.error("Startup error:", err);
     process.exit(1);
-  });
+  }
+}
+
+start();
 
 // ===== ROUTES =====
 
-// HTML PAGE (оставляем)
+// HTML (оставляем по заданию)
 app.get("/", (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -59,7 +62,6 @@ app.get("/", (req, res) => {
       </head>
       <body>
         <h1>REST API – Items</h1>
-
         <p><b>GET</b> /api/items</p>
         <p><b>GET</b> /api/items/:id</p>
         <p><b>POST</b> /api/items</p>
@@ -75,17 +77,17 @@ app.get("/", (req, res) => {
 // REST API — ITEMS
 // ======================
 
-// GET all items
+// GET all
 app.get("/api/items", async (req, res) => {
   try {
     const list = await items.find().toArray();
     res.status(200).json(list);
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// GET item by ID
+// GET by id
 app.get("/api/items/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -101,12 +103,12 @@ app.get("/api/items/:id", async (req, res) => {
     }
 
     res.status(200).json(item);
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// CREATE item
+// POST create
 app.post("/api/items", async (req, res) => {
   const { name, description } = req.body;
 
@@ -125,14 +127,12 @@ app.post("/api/items", async (req, res) => {
       id: result.insertedId,
       message: "Item created",
     });
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: "Server error" });
   }
-  console.log(req.body);
-
 });
 
-// FULL UPDATE (PUT)
+// PUT full update
 app.put("/api/items/:id", async (req, res) => {
   const { id } = req.params;
   const { name, description } = req.body;
@@ -142,7 +142,7 @@ app.put("/api/items/:id", async (req, res) => {
   }
 
   if (!name) {
-    return res.status(400).json({ error: "Name is required for full update" });
+    return res.status(400).json({ error: "Name is required" });
   }
 
   try {
@@ -155,13 +155,13 @@ app.put("/api/items/:id", async (req, res) => {
       return res.status(404).json({ error: "Item not found" });
     }
 
-    res.status(200).json({ message: "Item fully updated" });
-  } catch (err) {
+    res.status(200).json({ message: "Item updated" });
+  } catch {
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// PARTIAL UPDATE (PATCH)
+// PATCH partial update
 app.patch("/api/items/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -183,13 +183,13 @@ app.patch("/api/items/:id", async (req, res) => {
       return res.status(404).json({ error: "Item not found" });
     }
 
-    res.status(200).json({ message: "Item partially updated" });
-  } catch (err) {
+    res.status(200).json({ message: "Item updated" });
+  } catch {
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// DELETE item
+// DELETE
 app.delete("/api/items/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -205,7 +205,7 @@ app.delete("/api/items/:id", async (req, res) => {
     }
 
     res.status(204).send();
-  } catch (err) {
+  } catch {
     res.status(500).json({ error: "Server error" });
   }
 });
