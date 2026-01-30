@@ -6,7 +6,7 @@ const app = express();
 
 // ===== ENV =====
 const PORT = process.env.PORT || 3000;
-const MONGO_URL = process.env.MONGO_URI;
+const MONGO_URI = process.env.MONGO_URI;
 
 // ===== MIDDLEWARE =====
 app.use(express.json());
@@ -17,41 +17,40 @@ app.use((req, res, next) => {
 });
 
 // ===== DB =====
-let items = null;
+let items;
 
-// 🔒 блокируем API, пока БД не готова (ВАЖНО для Render)
-app.use("/api", (req, res, next) => {
+async function startServer() {
+  try {
+    if (!MONGO_URI) {
+      throw new Error("MONGO_URI is not defined");
+    }
+
+    const client = await MongoClient.connect(MONGO_URI);
+    console.log("MongoDB connected");
+
+    const db = client.db("practice13");
+    items = db.collection("items"); // создаётся автоматически
+
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error("Startup error:", err.message);
+    process.exit(1);
+  }
+}
+
+startServer();
+
+// ===== GUARD (важно для Render) =====
+app.use((req, res, next) => {
   if (!items) {
     return res.status(503).json({ error: "Database not ready" });
   }
   next();
 });
 
-// ===== START SERVER =====
-async function start() {
-  try {
-    const client = await MongoClient.connect(MONGO_URL);
-    console.log("MongoDB connected");
-
-    const db = client.db("shop");
-
-    // коллекция создаётся автоматически при первом insert
-    items = db.collection("items");
-
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
-  } catch (err) {
-    console.error("Startup error:", err);
-    process.exit(1);
-  }
-}
-
-start();
-
-// ===== ROUTES =====
-
-// HTML (оставляем по заданию)
+// ===== HTML PAGE =====
 app.get("/", (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -62,12 +61,12 @@ app.get("/", (req, res) => {
       </head>
       <body>
         <h1>REST API – Items</h1>
-        <p><b>GET</b> /api/items</p>
-        <p><b>GET</b> /api/items/:id</p>
-        <p><b>POST</b> /api/items</p>
-        <p><b>PUT</b> /api/items/:id</p>
-        <p><b>PATCH</b> /api/items/:id</p>
-        <p><b>DELETE</b> /api/items/:id</p>
+        <p>GET /api/items</p>
+        <p>GET /api/items/:id</p>
+        <p>POST /api/items</p>
+        <p>PUT /api/items/:id</p>
+        <p>PATCH /api/items/:id</p>
+        <p>DELETE /api/items/:id</p>
       </body>
     </html>
   `);
@@ -87,7 +86,7 @@ app.get("/api/items", async (req, res) => {
   }
 });
 
-// GET by id
+// GET by ID
 app.get("/api/items/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -155,7 +154,7 @@ app.put("/api/items/:id", async (req, res) => {
       return res.status(404).json({ error: "Item not found" });
     }
 
-    res.status(200).json({ message: "Item updated" });
+    res.status(200).json({ message: "Item fully updated" });
   } catch {
     res.status(500).json({ error: "Server error" });
   }
@@ -183,7 +182,7 @@ app.patch("/api/items/:id", async (req, res) => {
       return res.status(404).json({ error: "Item not found" });
     }
 
-    res.status(200).json({ message: "Item updated" });
+    res.status(200).json({ message: "Item partially updated" });
   } catch {
     res.status(500).json({ error: "Server error" });
   }
