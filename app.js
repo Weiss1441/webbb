@@ -17,16 +17,25 @@ app.use((req, res, next) => {
 });
 
 // ===== DB =====
-let products;
 let items;
 
 MongoClient.connect(MONGO_URL)
-  .then((client) => {
+  .then(async (client) => {
     console.log("MongoDB connected");
+
     const db = client.db("shop");
 
-    products = db.collection("products"); // старое
-    items = db.collection("items");       // новое (Task 13)
+    // 🔹 гарантированно создаём коллекцию items
+    const collections = await db
+      .listCollections({ name: "items" })
+      .toArray();
+
+    if (collections.length === 0) {
+      await db.createCollection("items");
+      console.log("Collection 'items' created");
+    }
+
+    items = db.collection("items");
 
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
@@ -39,42 +48,32 @@ MongoClient.connect(MONGO_URL)
 
 // ===== ROUTES =====
 
-// HTML PAGE (СОХРАНЕНО)
+// HTML PAGE (оставляем)
 app.get("/", (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html>
       <head>
         <meta charset="UTF-8">
-        <title>Practice Tasks</title>
+        <title>Practice Task 13</title>
       </head>
       <body>
-        <h1>Available API Routes</h1>
-        <h2>Items (Practice Task 13)</h2>
+        <h1>REST API – Items</h1>
+
         <p><b>GET</b> /api/items</p>
         <p><b>GET</b> /api/items/:id</p>
         <p><b>POST</b> /api/items</p>
         <p><b>PUT</b> /api/items/:id</p>
         <p><b>PATCH</b> /api/items/:id</p>
         <p><b>DELETE</b> /api/items/:id</p>
-
-        <p><b>GET</b> /version</p>
       </body>
     </html>
   `);
 });
 
-app.get("/version", (req, res) => {
-  res.json({
-    version: "1.1",
-    updatedAt: "2026-01-30",
-  });
-});
-
-
-// ==============================
-// PRACTICE TASK 13 — ITEMS
-// ==============================
+// ======================
+// REST API — ITEMS
+// ======================
 
 // GET all items
 app.get("/api/items", async (req, res) => {
@@ -96,9 +95,11 @@ app.get("/api/items/:id", async (req, res) => {
 
   try {
     const item = await items.findOne({ _id: new ObjectId(id) });
+
     if (!item) {
       return res.status(404).json({ error: "Item not found" });
     }
+
     res.status(200).json(item);
   } catch (err) {
     res.status(500).json({ error: "Server error" });
@@ -139,7 +140,7 @@ app.put("/api/items/:id", async (req, res) => {
   }
 
   if (!name) {
-    return res.status(400).json({ error: "Name is required" });
+    return res.status(400).json({ error: "Name is required for full update" });
   }
 
   try {
